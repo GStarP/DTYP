@@ -1,0 +1,1 @@
+https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.10.28/sherpa-onnx-v1.10.28-android.tar.bz2

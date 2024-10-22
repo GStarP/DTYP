@@ -4,5 +4,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 
 class MainStore : ViewModel() {
-    var isServiceRunning  = mutableStateOf(false)
+    var serviceState  = mutableStateOf(ServiceState.OFF)
+}
+
+enum class ServiceState {
+    ON, LOADING, OFF
 }

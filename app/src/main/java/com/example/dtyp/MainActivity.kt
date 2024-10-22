@@ -14,10 +14,12 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,20 +30,44 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.example.dtyp.input.InputService
 import com.example.dtyp.ui.theme.DTYPTheme
 import com.lzf.easyfloat.EasyFloat
 import com.lzf.easyfloat.enums.ShowPattern
 import com.lzf.easyfloat.enums.SidePattern
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+
 
 const val TAG = "DTYP"
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     // ViewModel 在 MainActivity 中初始化，然后一路传下去
     private val store = MainStore()
 
+    @Inject
+    lateinit var eventBus: EventBus
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        eventBus.subscribe(lifecycleScope) { event ->
+            Log.d(TAG, "onEvent: $event")
+            if (event is Event.CommonEvent) {
+                when (event.type) {
+                    EventType.ServiceStart -> {
+                        store.serviceState.value = ServiceState.ON
+                    }
+                    EventType.ServiceStop -> {
+                        store.serviceState.value = ServiceState.OFF
+                    }
+                }
+            }
+        }
+        Log.d(TAG, "subscribe finish")
+
         setContent {
             DTYPTheme {
                 // A surface container using the 'background' color from the theme
@@ -56,42 +82,45 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HomePage(store: MainStore) {
     val context = LocalContext.current
-    val isServiceRunning by store.isServiceRunning
+    val serviceState by store.serviceState
 
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Button(onClick = {
-            if (isServiceRunning) {
-                stopService(context, store)
-            } else {
-                startService(context, store)
+        Button(
+            enabled = serviceState != ServiceState.LOADING,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if(serviceState == ServiceState.ON) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            ),
+            onClick = {
+            if (serviceState == ServiceState.ON) {
+                stopService(context)
+            } else if (serviceState == ServiceState.OFF) {
+                store.serviceState.value = ServiceState.LOADING
+                startService(context)
             }
         }) {
-            Text(if(isServiceRunning) "停止服务" else "启动服务")
+            Text(when(serviceState) {
+                ServiceState.OFF -> "启动服务"
+                ServiceState.LOADING -> "启动中..."
+                ServiceState.ON -> "停止服务"
+            })
         }
     }
 }
 
-fun startService(context: Context, store: MainStore) {
-    if (store.isServiceRunning.value) return
+fun startService(context: Context) {
     if (!checkOverlayPermission(context) || !checkRecordAudioPermission(context)) return
 
     startInputService(context)
-    startFloatingWindowService(context, store)
-    navToDesktop(context)
-    store.isServiceRunning.value = true
+    startFloatingWindowService(context)
 }
 
-fun stopService(context: Context, store: MainStore) {
-    if (!store.isServiceRunning.value) return
-
+fun stopService(context: Context) {
     stopInputService(context)
     stopFloatingWindowService()
-    navToApp(context)
-    store.isServiceRunning.value = false
 }
 
 fun startInputService(context: Context) {
@@ -110,12 +139,12 @@ fun stopInputService(context: Context) {
 
 const val FloatingWindowTag = "fwt"
 // 显示悬浮窗
-fun startFloatingWindowService(context: Context, store: MainStore) {
+fun startFloatingWindowService(context: Context) {
     Log.d(TAG, "startFloatingWindowService")
     EasyFloat.with(context)
         .setLayout(R.layout.floating_window_layout) {
             it.findViewById<TextView>(R.id.exit).setOnClickListener {
-                stopService(context, store)
+                navToApp(context)
             }
         }
         .setTag(FloatingWindowTag)

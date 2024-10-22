@@ -12,31 +12,53 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.dtyp.Event
+import com.example.dtyp.EventBus
+import com.example.dtyp.EventType
 import com.example.dtyp.MainActivity
 import com.example.dtyp.R
+import com.example.dtyp.input.voice.VoiceInputManager
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
+import javax.inject.Inject
 
 const val TAG = "DTYP"
 
+@AndroidEntryPoint
 class InputService : Service() {
+    @Inject
+    lateinit var eventBus: EventBus
+    private val scope = MainScope() + CoroutineName("InputService")
+
+    private lateinit var voiceInputManager: VoiceInputManager
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "InputService.onStartCommand")
+        voiceInputManager = VoiceInputManager(this@InputService)
+        scope.launch {
+            // voiceInputManager.start => initModel 为耗时操作
+            val onText: (String) -> Unit = { text -> Log.i(TAG, "text: $text")}
+            voiceInputManager.start(onText)
+            Log.d(TAG, "emit EventType.ServiceStart")
+            eventBus.emit(Event.CommonEvent(EventType.ServiceStart, null))
+        }
         startForeground(1, createNotification())
-        startRecord()
         return START_STICKY
     }
 
     override fun onDestroy() {
+        voiceInputManager.stop()
+        scope.launch {
+            Log.d(TAG, "emit EventType.ServiceStop")
+            eventBus.emit(Event.CommonEvent(EventType.ServiceStop, null))
+            // ! 在执行结束后再清除，能保证执行完成，但有阻塞风险
+            scope.cancel()
+        }
         super.onDestroy()
-        stopRecord()
-    }
-
-    private fun startRecord() {
-        Log.d(TAG, "InputService.startRecord")
-    }
-
-    private fun stopRecord() {
-        Log.d(TAG, "InputService.stopRecord")
     }
 
     private fun createNotification(): Notification {
