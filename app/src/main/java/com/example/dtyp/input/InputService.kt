@@ -17,6 +17,8 @@ import com.example.dtyp.EventBus
 import com.example.dtyp.EventType
 import com.example.dtyp.MainActivity
 import com.example.dtyp.R
+import com.example.dtyp.action.accessibility.DTYPActionType
+import com.example.dtyp.action.doAction
 import com.example.dtyp.input.voice.VoiceInputManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineName
@@ -41,7 +43,12 @@ class InputService : Service() {
         voiceInputManager = VoiceInputManager(this@InputService)
         scope.launch {
             // voiceInputManager.start => initModel 为耗时操作
-            val onText: (String) -> Unit = { text -> Log.i(TAG, "text: $text")}
+            val onText: (String) -> Unit = { text ->
+                Log.i(TAG, "text: $text")
+                if (text == "下一个") {
+                    doAction(this@InputService, DTYPActionType.SWIPE_UP)
+                }
+            }
             voiceInputManager.start(onText)
             Log.d(TAG, "emit EventType.ServiceStart")
             eventBus.emit(Event.CommonEvent(EventType.ServiceStart, null))
@@ -77,6 +84,7 @@ class InputService : Service() {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
 
+        // TODO 通知并未显示（被 显示在其他应用上层 代替了？）
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("DTYP 正在监听您的麦克风")
             .setContentText("点击返回应用")

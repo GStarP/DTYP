@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.example.dtyp.action.accessibility.checkAccessibilityPermission
 import com.example.dtyp.input.InputService
 import com.example.dtyp.ui.theme.DTYPTheme
 import com.lzf.easyfloat.EasyFloat
@@ -98,8 +99,10 @@ fun HomePage(store: MainStore) {
             if (serviceState == ServiceState.ON) {
                 stopService(context)
             } else if (serviceState == ServiceState.OFF) {
-                store.serviceState.value = ServiceState.LOADING
-                startService(context)
+                if (checkOverlayPermission(context) and checkRecordAudioPermission(context) and checkAccessibilityPermission(context)) {
+                    store.serviceState.value = ServiceState.LOADING
+                    startService(context)
+                }
             }
         }) {
             Text(when(serviceState) {
@@ -112,8 +115,6 @@ fun HomePage(store: MainStore) {
 }
 
 fun startService(context: Context) {
-    if (!checkOverlayPermission(context) || !checkRecordAudioPermission(context)) return
-
     startInputService(context)
     startFloatingWindowService(context)
 }
